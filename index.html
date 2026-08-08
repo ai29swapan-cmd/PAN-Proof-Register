@@ -14,9 +14,14 @@
      ============================================================ -->
 <script>
   const CONFIG = {
-    SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwUu2-mK2ugdsqsLLyUXAYvS3kBf4HLv5SDNYopm8TvYMsKPheokHVmYeTMG2r-2MXYIA/exec",
+    SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwGkpOxJUTTmxdhk8a9z4ItxO5uwVqUeZETIWvFtzKJkAQIYqZXV9-GxWdow83J1oKQ/exec",
     REFRESH_MS: 30000,
-    CURRENCY: "₹"
+    CURRENCY: "₹",
+    // Fixed list of known centers — the dropdown always shows all of
+    // these, regardless of whether any records currently have that
+    // Center value in the data yet. Edit this list any time you add
+    // or rename a center.
+    CENTERS: ["Ahmedabad","Bangalore","Bhopal","Chandigarh","Chennai","Cochin","Delhi","Sahibabad","Goa","Hyderabad","Jaipur","Kolkata","Lucknow","Mumbai","Nagpur","Pune","Other"]
   };
 </script>
 
@@ -379,7 +384,12 @@
     const engineers = Array.from(new Set(state.records.map(r => r.Engineer).filter(Boolean))).sort();
     const profiles = Array.from(new Set(state.records.map(r => r.Profile).filter(Boolean))).sort();
     const submitted = Array.from(new Set(state.records.map(r => r.SubmittedTo).filter(Boolean))).sort();
-    const locations = Array.from(new Set(state.records.map(r => r.Center).filter(Boolean))).sort();
+    // Always show the full known list, plus any center value that
+    // shows up in the data but isn't in the fixed list yet (e.g. a
+    // typo or a new city not added to CONFIG.CENTERS).
+    const seenCenters = Array.from(new Set(state.records.map(r => r.Center).filter(Boolean)));
+    const extraCenters = seenCenters.filter(c => !CONFIG.CENTERS.includes(c));
+    const locations = CONFIG.CENTERS.concat(extraCenters.sort());
 
     fillSelect($("#f-month"), months, "All months");
     fillSelect($("#f-engineer"), engineers, "All engineers");
