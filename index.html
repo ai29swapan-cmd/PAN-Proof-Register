@@ -485,20 +485,16 @@
     const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
 
     // Follows the selected month (or defaults to the real current
-    // month), AND narrows further by the selected center if one is
-    // also picked — so "This Month" can mean "this month, for
-    // Mumbai" the moment both filters are active.
+    // month). This panel is intentionally NOT affected by the center
+    // filter — it always stays fixed to the overall month totals,
+    // even while the Center panel below reacts to the center picked.
     const activeMonth = state.month || currentMonth;
     const isCurrent = activeMonth === currentMonth;
-    const activeCenter = state.center;
 
-    $("#month-label").textContent = activeMonth + (activeCenter ? " · " + activeCenter : "");
+    $("#month-label").textContent = activeMonth;
     $("#month-title").textContent = isCurrent ? "This Month" : "Selected Month";
 
-    const scoped = state.records.filter(r =>
-      monthKey(r.Date) === activeMonth &&
-      (!activeCenter || r.Center === activeCenter)
-    );
+    const scoped = state.records.filter(r => monthKey(r.Date) === activeMonth);
     const requests = scoped.length;
     const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
     const cost = scoped.reduce((s,r) => s + (Number(r.Price)||0), 0);
