@@ -484,18 +484,21 @@
     const now = new Date();
     const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
 
-    // If a specific month is selected in the filter bar, the panel
-    // follows that selection. Otherwise it defaults to the real
-    // current month. Always scoped to the full dataset (not the
-    // other active filters like engineer/profile) so it stays a
-    // clean month-level summary.
+    // Follows the selected month (or defaults to the real current
+    // month), AND narrows further by the selected center if one is
+    // also picked — so "This Month" can mean "this month, for
+    // Mumbai" the moment both filters are active.
     const activeMonth = state.month || currentMonth;
     const isCurrent = activeMonth === currentMonth;
+    const activeCenter = state.center;
 
-    $("#month-label").textContent = activeMonth;
+    $("#month-label").textContent = activeMonth + (activeCenter ? " · " + activeCenter : "");
     $("#month-title").textContent = isCurrent ? "This Month" : "Selected Month";
 
-    const scoped = state.records.filter(r => monthKey(r.Date) === activeMonth);
+    const scoped = state.records.filter(r =>
+      monthKey(r.Date) === activeMonth &&
+      (!activeCenter || r.Center === activeCenter)
+    );
     const requests = scoped.length;
     const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
     const cost = scoped.reduce((s,r) => s + (Number(r.Price)||0), 0);
@@ -506,19 +509,20 @@
   }
 
   function updateCenterStats(){
-    // Mirrors updateMonthStats: shows all-centers totals by default,
-    // and switches to that specific center's figures the moment one
-    // is selected in the filter bar. Always scoped to the full
-    // dataset (not the other active filters) so it stays a clean
-    // center-level summary regardless of what else is filtered.
+    // Shows all-centers totals by default, switches to a specific
+    // center once selected, AND narrows further by the selected
+    // month if one is also picked — so this panel can mean "Mumbai,
+    // for August 2026" the moment both filters are active.
     const activeCenter = state.center;
+    const activeMonth = state.month;
 
-    $("#center-label").textContent = activeCenter || "All Centers";
+    $("#center-label").textContent = (activeCenter || "All Centers") + (activeMonth ? " · " + activeMonth : "");
     $("#center-title").textContent = activeCenter ? "Selected Center" : "Center";
 
-    const scoped = activeCenter
-      ? state.records.filter(r => r.Center === activeCenter)
-      : state.records;
+    const scoped = state.records.filter(r =>
+      (!activeCenter || r.Center === activeCenter) &&
+      (!activeMonth || monthKey(r.Date) === activeMonth)
+    );
 
     const requests = scoped.length;
     const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
