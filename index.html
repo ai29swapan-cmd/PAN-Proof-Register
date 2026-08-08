@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proof Register Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+
+<!-- ============================================================
+     CONFIG — the only thing you'd need to edit
+     ============================================================ -->
+<script>
+  const CONFIG = {
+    SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwUu2-mK2ugdsqsLLyUXAYvS3kBf4HLv5SDNYopm8TvYMsKPheokHVmYeTMG2r-2MXYIA/exec",
+    REFRESH_MS: 30000,
+    CURRENCY: "₹"
+  };
+</script>
+
+<style>
+  :root{
+    --bg: #F6F7F9;
+    --card: #FFFFFF;
+    --border: #E4E7EC;
+    --text: #1F2430;
+    --text-soft: #6B7280;
+    --text-faint: #9CA3AF;
+    --accent: #0B5394;
+    --accent-soft: #EAF2FB;
+    --good: #2E7D32;
+    --bad: #C0392B;
+    --gold: #C9860B;
+    --radius: 10px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{ color:var(--accent); }
+
+  .wrap{ max-width:1220px; margin:0 auto; padding:28px 24px 60px 24px; }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    flex-wrap:wrap; gap:14px; margin-bottom:22px;
+  }
+  header h1{ margin:0 0 4px 0; font-size:24px; font-weight:700; letter-spacing:-0.01em; }
+  header p{ margin:0; color:var(--text-soft); font-size:13.5px; }
+  .status{
+    display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600;
+    color:var(--good); background:#EAF7EC; border:1px solid #CFEAD1;
+    padding:6px 12px; border-radius:20px; white-space:nowrap;
+  }
+  .status.offline{ color:var(--bad); background:#FBEAEA; border-color:#F0C6C2; }
+  .status .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+
+  .config-banner{
+    display:none; background:#FBEAEA; border:1px solid #F0C6C2; color:#7A2622;
+    padding:12px 16px; border-radius:var(--radius); margin-bottom:20px; font-size:13px;
+  }
+  .config-banner code{ background:#fff; padding:1px 6px; border-radius:4px; font-family:var(--mono); }
+
+  /* ---------- stat cards ---------- */
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px;
+  }
+  .stat-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .stat-card .l{ font-size:12px; color:var(--text-soft); margin-bottom:6px; }
+  .stat-card .v{ font-family:var(--mono); font-size:24px; font-weight:600; }
+  .stat-card.gold .v{ color:var(--gold); }
+
+  /* ---------- this-month strip ---------- */
+  .stats-month{
+    display:grid; grid-template-columns:1.1fr 1fr 1fr 1fr; gap:14px; margin-bottom:24px;
+  }
+  .stat-card.month-highlight{
+    border-left:3px solid var(--accent); padding-left:15px; position:relative;
+  }
+  .stat-card.month-highlight .l{ display:flex; align-items:center; gap:6px; }
+  .stat-card.month-highlight .l::before{
+    content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none;
+  }
+  .stat-card .v.teal{ color:#0E7C86; }
+  .stat-card .v.magenta{ color:#C2185B; }
+
+  /* ---------- filter bar ---------- */
+  .filters{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:24px;
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  }
+  .filters select, .filters input[type="search"]{
+    font-family:var(--font); font-size:13px; color:var(--text);
+    border:1px solid var(--border); background:#FBFBFC;
+    padding:8px 10px; border-radius:7px; min-height:36px;
+  }
+  .filters input[type="search"]{ flex:1; min-width:180px; }
+  .filters select{ cursor:pointer; }
+  .filters .spacer{ flex:1; }
+  .btn{
+    font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer;
+    border-radius:7px; padding:8px 14px; border:1px solid var(--border);
+    background:#fff; color:var(--text); white-space:nowrap;
+  }
+  .btn:hover{ background:#F3F4F6; }
+  .btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.primary:hover{ background:#094273; }
+
+  /* ---------- charts ---------- */
+  .charts-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px;
+  }
+  .chart-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .chart-card h3{ margin:0 0 12px 0; font-size:13.5px; font-weight:600; color:var(--text); }
+  .chart-card canvas{ max-height:220px; }
+  .chart-empty{
+    height:220px; display:flex; align-items:center; justify-content:center;
+    color:var(--text-faint); font-size:12.5px;
+  }
+
+  /* ---------- table ---------- */
+  .table-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .table-head-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px; border-bottom:1px solid var(--border);
+  }
+  .table-head-row h2{ margin:0; font-size:15px; font-weight:600; }
+  .table-head-row .count{ font-size:12px; color:var(--text-soft); }
+  .table-scroll{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; min-width:820px; }
+  thead th{
+    text-align:left; font-size:11.5px; font-weight:600; color:var(--text-soft);
+    text-transform:uppercase; letter-spacing:0.04em; padding:10px 14px;
+    border-bottom:1px solid var(--border); background:#FAFBFC; cursor:pointer; white-space:nowrap;
+  }
+  thead th:hover{ color:var(--text); }
+  thead th.num{ text-align:right; }
+  tbody td{ padding:10px 14px; border-bottom:1px solid var(--border); }
+  tbody td.num{ text-align:right; font-family:var(--mono); }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:#FAFBFC; }
+  .badge{
+    display:inline-block; padding:2px 9px; border-radius:20px; font-size:11.5px; font-weight:600;
+  }
+  .cost-cell{ color:var(--gold); font-weight:600; }
+  .empty-state, .loading-state{
+    padding:50px 20px; text-align:center; color:var(--text-faint); font-size:13px;
+  }
+
+  footer{
+    text-align:center; padding:26px 0 6px 0; color:var(--text-faint); font-size:11.5px;
+  }
+  footer .brand{ letter-spacing:0.08em; font-weight:700; color:var(--text-soft); font-size:11px; margin-bottom:4px; }
+
+  @media (max-width:900px){
+    .stats{ grid-template-columns:repeat(2,1fr); }
+    .stats-month{ grid-template-columns:repeat(2,1fr); }
+    .charts-grid{ grid-template-columns:1fr; }
+  }
+  @media (max-width:640px){
+    table{ min-width:0; }
+    thead{ display:none; }
+    tbody tr{ display:block; border-bottom:2px solid var(--border); padding:8px 0; }
+    tbody td{ display:flex; justify-content:space-between; gap:10px; border-bottom:none; padding:5px 14px; }
+    tbody td::before{
+      content:attr(data-label); font-size:11px; color:var(--text-faint); font-weight:500;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Proof Register Dashboard</h1>
+      <p>Print request tracking &amp; price register</p>
+    </div>
+    <span class="status" id="status-pill"><span class="dot"></span> Live</span>
+  </header>
+
+  <div class="config-banner" id="config-banner">
+    No live data source configured. Set <code>CONFIG.SCRIPT_URL</code> at the top of this file to your deployed Apps Script <code>/exec</code> URL.
+  </div>
+
+  <section class="stats">
+    <div class="stat-card"><div class="l">Total Records</div><div class="v" id="stat-total">—</div></div>
+    <div class="stat-card"><div class="l">Total Prints</div><div class="v" id="stat-prints">—</div></div>
+    <div class="stat-card gold"><div class="l">Total Price</div><div class="v" id="stat-cost">—</div></div>
+    <div class="stat-card"><div class="l">Added Today</div><div class="v" id="stat-today">—</div></div>
+  </section>
+
+  <section class="stats-month">
+    <div class="stat-card month-highlight"><div class="l" id="month-title">This Month</div><div class="v" id="month-label">—</div></div>
+    <div class="stat-card"><div class="l">Requests</div><div class="v" id="month-requests">—</div></div>
+    <div class="stat-card"><div class="l">Prints</div><div class="v teal" id="month-prints">—</div></div>
+    <div class="stat-card"><div class="l">Price</div><div class="v magenta" id="month-cost">—</div></div>
+  </section>
+
+  <div class="filters">
+    <select id="f-month"><option value="">All months</option></select>
+    <select id="f-engineer"><option value="">All engineers</option></select>
+    <select id="f-profile"><option value="">All profiles</option></select>
+    <select id="f-submitted"><option value="">All submitted to</option></select>
+    <select id="f-center"><option value="">All centers</option></select>
+    <input type="search" id="f-search" placeholder="Search…">
+    <span class="spacer"></span>
+    <button class="btn" id="btn-clear">Clear filters</button>
+    <button class="btn primary" id="btn-export">Export view (CSV)</button>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Prints by Engineer</h3>
+      <div id="chart-engineer-wrap"><canvas id="chart-engineer"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Requests by Profile</h3>
+      <div id="chart-profile-wrap"><canvas id="chart-profile"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Price Over Time</h3>
+      <div id="chart-cost-wrap"><canvas id="chart-cost"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Who Asked</h3>
+      <div id="chart-whoasked-wrap"><canvas id="chart-whoasked"></canvas></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head-row">
+      <h2>Records</h2>
+      <span class="count" id="result-count"></span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="Date">Date</th>
+            <th data-sort="Profile">Profile</th>
+            <th data-sort="WhoAsked">Who Asked</th>
+            <th data-sort="Center">Center</th>
+            <th data-sort="Prints" class="num">No. of Prints</th>
+            <th data-sort="Engineer">Engineer</th>
+            <th data-sort="Remarks">Remarks</th>
+            <th data-sort="SubmittedTo">Submitted To</th>
+            <th data-sort="Price" class="num">Price</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="9"><div class="loading-state">Loading latest data…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <div class="brand">PROOF REGISTER DASHBOARD</div>
+    <div>Designed &amp; Developed by Swaapan Kumarr Sardar</div>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  const state = { records: [], sortKey:"Date", sortDir:"desc", search:"", month:"", engineer:"", profile:"", submitted:"", center:"" };
+  let charts = {};
+  let firstLoad = true;
+  let failCount = 0;
+  let pollTimer = null;
+
+  const $ = (sel) => document.querySelector(sel);
+  const fmtMoney = (n) => CONFIG.CURRENCY + (Number(n)||0).toLocaleString("en-IN");
+  const fmtNum = (n) => (Number(n)||0).toLocaleString("en-IN");
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+
+  function paletteFor(text){
+    const palette = [
+      {bg:"#E3F0FF", fg:"#0B5394"}, {bg:"#E9F7EC", fg:"#2E7D32"},
+      {bg:"#FFF1E0", fg:"#C9860B"}, {bg:"#F3E8FF", fg:"#7B2CBF"},
+      {bg:"#FFE8EC", fg:"#C2185B"}, {bg:"#E0FBFB", fg:"#00796B"},
+      {bg:"#FFF9DB", fg:"#997404"}, {bg:"#EAECFF", fg:"#3F37C9"}
+    ];
+    const str = String(text || "?");
+    let hash = 0;
+    for(let i=0;i<str.length;i++){ hash = (hash*31 + str.charCodeAt(i)) >>> 0; }
+    return palette[hash % palette.length];
+  }
+
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+  function monthKey(v){
+    if(!v) return "";
+    const d = new Date(v);
+    if(isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { month:"long", year:"numeric" });
+  }
+
+  function setStatus(ok){
+    const el = $("#status-pill");
+    el.classList.toggle("offline", !ok);
+    el.innerHTML = '<span class="dot"></span> ' + (ok ? "Live" : "Offline");
+  }
+
+  async function fetchRecords(){
+    if(!CONFIG.SCRIPT_URL || CONFIG.SCRIPT_URL.indexOf("PASTE_YOUR") === 0){
+      $("#config-banner").style.display = "block";
+      setStatus(false);
+      $("#table-body").innerHTML = '<tr><td colspan="9"><div class="empty-state">Not connected to a live source yet.</div></td></tr>';
+      return;
+    }
+    try{
+      const res = await fetch(CONFIG.SCRIPT_URL, { cache:"no-store" });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      state.records = Array.isArray(data) ? data : [];
+      failCount = 0;
+      setStatus(true);
+      populateFilters();
+      render();
+      firstLoad = false;
+      scheduleNext(CONFIG.REFRESH_MS);
+    }catch(err){
+      console.error("Fetch failed:", err);
+      failCount++;
+      // Only show Offline after 2 consecutive misses — a single blip
+      // (cold start, one dropped packet) shouldn't alarm the user
+      // when the connection is actually fine.
+      if(failCount >= 2){
+        setStatus(false);
+      }
+      if(firstLoad){
+        $("#table-body").innerHTML = '<tr><td colspan="9"><div class="empty-state">Could not reach the live register. Check the deployed script URL.</div></td></tr>';
+      }
+      // Retry sooner than the normal interval so a transient miss
+      // recovers quickly instead of waiting the full 30s.
+      scheduleNext(5000);
+    }
+  }
+
+  function scheduleNext(delay){
+    if(pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(fetchRecords, delay);
+  }
+
+  function fillSelect(select, values, allLabel){
+    const prev = select.value;
+    select.innerHTML = '<option value="">' + allLabel + '</option>' +
+      values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+    select.value = values.includes(prev) ? prev : "";
+  }
+
+  function populateFilters(){
+    const months = Array.from(new Set(state.records.map(r => monthKey(r.Date)).filter(Boolean)));
+    months.sort((a,b) => new Date(a) - new Date(b));
+    const engineers = Array.from(new Set(state.records.map(r => r.Engineer).filter(Boolean))).sort();
+    const profiles = Array.from(new Set(state.records.map(r => r.Profile).filter(Boolean))).sort();
+    const submitted = Array.from(new Set(state.records.map(r => r.SubmittedTo).filter(Boolean))).sort();
+    const locations = Array.from(new Set(state.records.map(r => r.Center).filter(Boolean))).sort();
+
+    fillSelect($("#f-month"), months, "All months");
+    fillSelect($("#f-engineer"), engineers, "All engineers");
+    fillSelect($("#f-profile"), profiles, "All profiles");
+    fillSelect($("#f-submitted"), submitted, "All submitted to");
+    fillSelect($("#f-center"), locations, "All centers");
+  }
+
+  function getFiltered(){
+    const q = state.search.trim().toLowerCase();
+    return state.records.filter(r => {
+      if(state.month && monthKey(r.Date) !== state.month) return false;
+      if(state.engineer && r.Engineer !== state.engineer) return false;
+      if(state.profile && r.Profile !== state.profile) return false;
+      if(state.submitted && r.SubmittedTo !== state.submitted) return false;
+      if(state.center && r.Center !== state.center) return false;
+      if(q){
+        const hay = [r.Profile, r.WhoAsked, r.Engineer, r.SubmittedTo, r.Remarks, r.Center]
+          .map(v => String(v||"").toLowerCase()).join(" ");
+        if(hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function sortRows(rows){
+    const key = state.sortKey, dir = state.sortDir === "asc" ? 1 : -1;
+    return rows.slice().sort((a,b) => {
+      let av = a[key], bv = b[key];
+      if(key === "Prints" || key === "Price"){
+        av = Number(av)||0; bv = Number(bv)||0;
+        return (av - bv) * dir;
+      }
+      if(key === "Date"){
+        av = new Date(av||0).getTime(); bv = new Date(bv||0).getTime();
+        return (av - bv) * dir;
+      }
+      av = String(av||"").toLowerCase(); bv = String(bv||"").toLowerCase();
+      return av.localeCompare(bv) * dir;
+    });
+  }
+
+  function formatDate(v){
+    if(!v) return "";
+    const d = new Date(v);
+    if(isNaN(d.getTime())) return v;
+    return d.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+  }
+
+  function render(){
+    const filtered = sortRows(getFiltered());
+    const tbody = $("#table-body");
+
+    if(filtered.length === 0){
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">No entries match. Try clearing a filter.</div></td></tr>';
+    } else {
+      tbody.innerHTML = filtered.map(r => {
+        const pColor = paletteFor(r.Profile);
+        return `<tr>
+          <td data-label="Date">${escapeHtml(formatDate(r.Date))}</td>
+          <td data-label="Profile"><span class="badge" style="background:${pColor.bg};color:${pColor.fg};">${escapeHtml(r.Profile)}</span></td>
+          <td data-label="Who Asked">${escapeHtml(r.WhoAsked)}</td>
+          <td data-label="Center">${r.Center ? `<span class="badge" style="background:${paletteFor(r.Center).bg};color:${paletteFor(r.Center).fg};">${escapeHtml(r.Center)}</span>` : "—"}</td>
+          <td data-label="No. of Prints" class="num">${fmtNum(r.Prints)}</td>
+          <td data-label="Engineer">${escapeHtml(r.Engineer)}</td>
+          <td data-label="Remarks">${escapeHtml(r.Remarks) || "—"}</td>
+          <td data-label="Submitted To">${escapeHtml(r.SubmittedTo)}</td>
+          <td data-label="Price" class="num cost-cell">${fmtMoney(r.Price)}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    $("#result-count").textContent = filtered.length + " of " + state.records.length + " shown";
+    updateStats(filtered);
+    updateMonthStats();
+    try{
+      updateCharts(filtered);
+    }catch(chartErr){
+      console.error("Chart render failed (data connection is still fine):", chartErr);
+    }
+  }
+
+  function updateMonthStats(){
+    const now = new Date();
+    const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
+
+    // If a specific month is selected in the filter bar, the panel
+    // follows that selection. Otherwise it defaults to the real
+    // current month. Always scoped to the full dataset (not the
+    // other active filters like engineer/profile) so it stays a
+    // clean month-level summary.
+    const activeMonth = state.month || currentMonth;
+    const isCurrent = activeMonth === currentMonth;
+
+    $("#month-label").textContent = activeMonth;
+    $("#month-title").textContent = isCurrent ? "This Month" : "Selected Month";
+
+    const scoped = state.records.filter(r => monthKey(r.Date) === activeMonth);
+    const requests = scoped.length;
+    const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
+    const cost = scoped.reduce((s,r) => s + (Number(r.Price)||0), 0);
+
+    $("#month-requests").textContent = fmtNum(requests);
+    $("#month-prints").textContent = fmtNum(prints);
+    $("#month-cost").textContent = fmtMoney(cost);
+  }
+
+  function updateStats(filtered){
+    const total = state.records.length;
+    const prints = state.records.reduce((s,r) => s + (Number(r.Prints)||0), 0);
+    const cost = state.records.reduce((s,r) => s + (Number(r.Price)||0), 0);
+    const today = todayISO();
+    const addedToday = state.records.filter(r => String(r.Date||"").slice(0,10) === today).length;
+
+    $("#stat-total").textContent = fmtNum(total);
+    $("#stat-prints").textContent = fmtNum(prints);
+    $("#stat-cost").textContent = fmtMoney(cost);
+    $("#stat-today").textContent = fmtNum(addedToday);
+  }
+
+  function groupSum(rows, keyFn, valFn){
+    const map = {};
+    rows.forEach(r => {
+      const k = keyFn(r) || "Unspecified";
+      map[k] = (map[k]||0) + valFn(r);
+    });
+    return map;
+  }
+
+  function makeOrUpdateBar(id, canvasId, labels, data, color){
+    const wrap = $("#" + id + "-wrap");
+    if(labels.length === 0){
+      wrap.innerHTML = '<div class="chart-empty">No data to show yet.</div>';
+      charts[id] = null;
+      return;
+    }
+    if(!document.getElementById(canvasId)){
+      wrap.innerHTML = '<canvas id="' + canvasId + '"></canvas>';
+    }
+    const ctx = document.getElementById(canvasId);
+    if(charts[id]){
+      charts[id].data.labels = labels;
+      charts[id].data.datasets[0].data = data;
+      charts[id].update();
+      return;
+    }
+    charts[id] = new Chart(ctx, {
+      type:"bar",
+      data:{ labels, datasets:[{ data, backgroundColor: color, borderRadius:4, maxBarThickness:32 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+          x:{ grid:{ display:false }, ticks:{ font:{ family:"Inter", size:11 }, color:"#6B7280" } },
+          y:{ grid:{ color:"#EEF0F3" }, ticks:{ font:{ family:"IBM Plex Mono", size:10 }, color:"#6B7280" } }
+        }
+      }
+    });
+  }
+
+  function updateCharts(filtered){
+    // Prints by Engineer
+    const byEngineer = groupSum(filtered, r => r.Engineer, r => Number(r.Prints)||0);
+    const engEntries = Object.entries(byEngineer).sort((a,b) => b[1]-a[1]).slice(0,8);
+    makeOrUpdateBar("chart-engineer", "chart-engineer", engEntries.map(e=>e[0]), engEntries.map(e=>e[1]), "#0B5394");
+
+    // Requests by Profile
+    const byProfileCount = groupSum(filtered, r => r.Profile, () => 1);
+    const profEntries = Object.entries(byProfileCount).sort((a,b) => b[1]-a[1]).slice(0,8);
+    makeOrUpdateBar("chart-profile", "chart-profile", profEntries.map(e=>e[0]), profEntries.map(e=>e[1]), "#2E7D32");
+
+    // Who Asked
+    const byWho = groupSum(filtered, r => r.WhoAsked, () => 1);
+    const whoEntries = Object.entries(byWho).sort((a,b) => b[1]-a[1]).slice(0,8);
+    makeOrUpdateBar("chart-whoasked", "chart-whoasked", whoEntries.map(e=>e[0]), whoEntries.map(e=>e[1]), "#7B2CBF");
+
+    // Price over time (by date, chronological)
+    const byDate = {};
+    filtered.forEach(r => {
+      const d = String(r.Date||"").slice(0,10);
+      if(!d) return;
+      byDate[d] = (byDate[d]||0) + (Number(r.Price)||0);
+    });
+    const dateKeys = Object.keys(byDate).sort();
+    const wrap = $("#chart-cost-wrap");
+    if(dateKeys.length === 0){
+      wrap.innerHTML = '<div class="chart-empty">No data to show yet.</div>';
+      charts["chart-cost"] = null;
+    } else {
+      if(!document.getElementById("chart-cost")){
+        wrap.innerHTML = '<canvas id="chart-cost"></canvas>';
+      }
+      const labels = dateKeys.map(d => formatDate(d));
+      const data = dateKeys.map(d => byDate[d]);
+      if(charts["chart-cost"]){
+        charts["chart-cost"].data.labels = labels;
+        charts["chart-cost"].data.datasets[0].data = data;
+        charts["chart-cost"].update();
+      } else {
+        charts["chart-cost"] = new Chart(document.getElementById("chart-cost"), {
+          type:"line",
+          data:{ labels, datasets:[{ data, borderColor:"#C9860B", backgroundColor:"rgba(201,134,11,0.12)", fill:true, tension:0.3, pointRadius:3 }] },
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ display:false } },
+            scales:{
+              x:{ grid:{ display:false }, ticks:{ font:{ family:"Inter", size:10 }, color:"#6B7280", maxRotation:0 } },
+              y:{ grid:{ color:"#EEF0F3" }, ticks:{ font:{ family:"IBM Plex Mono", size:10 }, color:"#6B7280" } }
+            }
+          }
+        });
+      }
+    }
+  }
+
+  function exportCSV(){
+    const rows = sortRows(getFiltered());
+    const headers = ["Date","Profile","WhoAsked","Center","Prints","Engineer","Remarks","SubmittedTo","Price"];
+    const csvRows = [headers.join(",")];
+    rows.forEach(r => {
+      const vals = headers.map(h => {
+        let v = r[h] == null ? "" : String(r[h]);
+        if(v.indexOf(",") !== -1 || v.indexOf('"') !== -1){
+          v = '"' + v.replace(/"/g,'""') + '"';
+        }
+        return v;
+      });
+      csvRows.push(vals.join(","));
+    });
+    const blob = new Blob([csvRows.join("\n")], { type:"text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "proof-register-export-" + todayISO() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ---- events ----
+  $("#f-search").addEventListener("input", e => { state.search = e.target.value; render(); });
+  $("#f-month").addEventListener("change", e => { state.month = e.target.value; render(); });
+  $("#f-engineer").addEventListener("change", e => { state.engineer = e.target.value; render(); });
+  $("#f-profile").addEventListener("change", e => { state.profile = e.target.value; render(); });
+  $("#f-submitted").addEventListener("change", e => { state.submitted = e.target.value; render(); });
+  $("#f-center").addEventListener("change", e => { state.center = e.target.value; render(); });
+  $("#btn-clear").addEventListener("click", () => {
+    state.search = ""; state.month = ""; state.engineer = ""; state.profile = ""; state.submitted = ""; state.center = "";
+    $("#f-search").value = ""; $("#f-month").value = ""; $("#f-engineer").value = "";
+    $("#f-profile").value = ""; $("#f-submitted").value = ""; $("#f-center").value = "";
+    render();
+  });
+  $("#btn-export").addEventListener("click", exportCSV);
+
+  document.querySelectorAll("thead th[data-sort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.getAttribute("data-sort");
+      if(state.sortKey === key){ state.sortDir = state.sortDir === "asc" ? "desc" : "asc"; }
+      else { state.sortKey = key; state.sortDir = "asc"; }
+      render();
+    });
+  });
+
+  fetchRecords();
+})();
+</script>
+
+</body>
+</html>
