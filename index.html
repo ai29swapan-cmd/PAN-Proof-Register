@@ -294,6 +294,7 @@
 <script>
 (function(){
   const state = { records: [], sortKey:"Date", sortDir:"desc", search:"", month:"", engineer:"", profile:"", submitted:"", center:"" };
+  let monthDefaultApplied = false;
   let charts = {};
   let firstLoad = true;
   let failCount = 0;
@@ -403,6 +404,20 @@
     fillSelect($("#f-profile"), profiles, "All profiles");
     fillSelect($("#f-submitted"), submitted, "All submitted to");
     fillSelect($("#f-center"), locations, "All centers");
+
+    // First time filters are populated, default the month dropdown
+    // to the current month (instead of "All months") if there's any
+    // data for it. Only happens once — after that the user's own
+    // choice (including switching back to "All months") is respected.
+    if(!monthDefaultApplied){
+      monthDefaultApplied = true;
+      const now = new Date();
+      const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
+      if(months.includes(currentMonth)){
+        state.month = currentMonth;
+        $("#f-month").value = currentMonth;
+      }
+    }
   }
 
   function getFiltered(){
