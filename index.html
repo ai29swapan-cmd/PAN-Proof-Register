@@ -85,14 +85,14 @@
   .stat-card.gold .v{ color:var(--gold); }
 
   /* ---------- this-month strip ---------- */
-  .stats-month{
+  .stats-month, .stats-center{
     display:grid; grid-template-columns:1.1fr 1fr 1fr 1fr; gap:14px; margin-bottom:24px;
   }
-  .stat-card.month-highlight{
+  .stat-card.month-highlight, .stat-card.center-highlight{
     border-left:3px solid var(--accent); padding-left:15px; position:relative;
   }
-  .stat-card.month-highlight .l{ display:flex; align-items:center; gap:6px; }
-  .stat-card.month-highlight .l::before{
+  .stat-card.month-highlight .l, .stat-card.center-highlight .l{ display:flex; align-items:center; gap:6px; }
+  .stat-card.month-highlight .l::before, .stat-card.center-highlight .l::before{
     content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none;
   }
   .stat-card .v.teal{ color:#0E7C86; }
@@ -175,7 +175,7 @@
 
   @media (max-width:900px){
     .stats{ grid-template-columns:repeat(2,1fr); }
-    .stats-month{ grid-template-columns:repeat(2,1fr); }
+    .stats-month, .stats-center{ grid-template-columns:repeat(2,1fr); }
     .charts-grid{ grid-template-columns:1fr; }
   }
   @media (max-width:640px){
@@ -217,6 +217,13 @@
     <div class="stat-card"><div class="l">Requests</div><div class="v" id="month-requests">—</div></div>
     <div class="stat-card"><div class="l">Prints</div><div class="v teal" id="month-prints">—</div></div>
     <div class="stat-card"><div class="l">Price</div><div class="v magenta" id="month-cost">—</div></div>
+  </section>
+
+  <section class="stats-center">
+    <div class="stat-card center-highlight"><div class="l" id="center-title">Center</div><div class="v" id="center-label">All Centers</div></div>
+    <div class="stat-card"><div class="l">Requests</div><div class="v" id="center-requests">—</div></div>
+    <div class="stat-card"><div class="l">Prints</div><div class="v teal" id="center-prints">—</div></div>
+    <div class="stat-card"><div class="l">Price</div><div class="v magenta" id="center-price">—</div></div>
   </section>
 
   <div class="filters">
@@ -465,6 +472,7 @@
     $("#result-count").textContent = filtered.length + " of " + state.records.length + " shown";
     updateStats(filtered);
     updateMonthStats();
+    updateCenterStats();
     try{
       updateCharts(filtered);
     }catch(chartErr){
@@ -495,6 +503,30 @@
     $("#month-requests").textContent = fmtNum(requests);
     $("#month-prints").textContent = fmtNum(prints);
     $("#month-cost").textContent = fmtMoney(cost);
+  }
+
+  function updateCenterStats(){
+    // Mirrors updateMonthStats: shows all-centers totals by default,
+    // and switches to that specific center's figures the moment one
+    // is selected in the filter bar. Always scoped to the full
+    // dataset (not the other active filters) so it stays a clean
+    // center-level summary regardless of what else is filtered.
+    const activeCenter = state.center;
+
+    $("#center-label").textContent = activeCenter || "All Centers";
+    $("#center-title").textContent = activeCenter ? "Selected Center" : "Center";
+
+    const scoped = activeCenter
+      ? state.records.filter(r => r.Center === activeCenter)
+      : state.records;
+
+    const requests = scoped.length;
+    const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
+    const price = scoped.reduce((s,r) => s + (Number(r.Price)||0), 0);
+
+    $("#center-requests").textContent = fmtNum(requests);
+    $("#center-prints").textContent = fmtNum(prints);
+    $("#center-price").textContent = fmtMoney(price);
   }
 
   function updateStats(filtered){
