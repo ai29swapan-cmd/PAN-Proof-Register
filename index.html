@@ -15,6 +15,10 @@
 <script>
   const CONFIG = {
     SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwGkpOxJUTTmxdhk8a9z4ItxO5uwVqUeZETIWvFtzKJkAQIYqZXV9-GxWdow83J1oKQ/exec",
+    // Must match APP_SECRET exactly in Code.gs (and appSecret in the
+    // Flutter app). Every request now requires this token, or the
+    // script rejects it with {"status":"error","message":"unauthorized"}.
+    APP_SECRET: "pan-proof-Xk9mQ2vRt7wL4nB8",
     REFRESH_MS: 30000,
     CURRENCY: "₹",
     // Fixed list of known centers — the dropdown always shows all of
@@ -84,15 +88,15 @@
   .stat-card .v{ font-family:var(--mono); font-size:24px; font-weight:600; }
   .stat-card.gold .v{ color:var(--gold); }
 
-  /* ---------- center strip ---------- */
-  .stats-center{
+  /* ---------- this-month strip ---------- */
+  .stats-month, .stats-center{
     display:grid; grid-template-columns:1.1fr 1fr 1fr 1fr; gap:14px; margin-bottom:24px;
   }
-  .stat-card.center-highlight{
+  .stat-card.month-highlight, .stat-card.center-highlight{
     border-left:3px solid var(--accent); padding-left:15px; position:relative;
   }
-  .stat-card.center-highlight .l{ display:flex; align-items:center; gap:6px; }
-  .stat-card.center-highlight .l::before{
+  .stat-card.month-highlight .l, .stat-card.center-highlight .l{ display:flex; align-items:center; gap:6px; }
+  .stat-card.month-highlight .l::before, .stat-card.center-highlight .l::before{
     content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none;
   }
   .stat-card .v.teal{ color:#0E7C86; }
@@ -175,7 +179,7 @@
 
   @media (max-width:900px){
     .stats{ grid-template-columns:repeat(2,1fr); }
-    .stats-center{ grid-template-columns:repeat(2,1fr); }
+    .stats-month, .stats-center{ grid-template-columns:repeat(2,1fr); }
     .charts-grid{ grid-template-columns:1fr; }
   }
   @media (max-width:640px){
@@ -210,6 +214,13 @@
     <div class="stat-card"><div class="l">Total Prints</div><div class="v" id="stat-prints">—</div></div>
     <div class="stat-card gold"><div class="l">Total Price</div><div class="v" id="stat-cost">—</div></div>
     <div class="stat-card"><div class="l">Added Today</div><div class="v" id="stat-today">—</div></div>
+  </section>
+
+  <section class="stats-month">
+    <div class="stat-card month-highlight"><div class="l" id="month-title">This Month</div><div class="v" id="month-label">—</div></div>
+    <div class="stat-card"><div class="l">Requests</div><div class="v" id="month-requests">—</div></div>
+    <div class="stat-card"><div class="l">Prints</div><div class="v teal" id="month-prints">—</div></div>
+    <div class="stat-card"><div class="l">Price</div><div class="v magenta" id="month-cost">—</div></div>
   </section>
 
   <section class="stats-center">
@@ -287,7 +298,6 @@
 <script>
 (function(){
   const state = { records: [], sortKey:"Date", sortDir:"desc", search:"", month:"", engineer:"", profile:"", submitted:"", center:"" };
-  let monthDefaultApplied = false;
   let charts = {};
   let firstLoad = true;
   let failCount = 0;
@@ -339,9 +349,15 @@
       return;
     }
     try{
-      const res = await fetch(CONFIG.SCRIPT_URL, { cache:"no-store" });
+      const url = CONFIG.SCRIPT_URL + "?token=" + encodeURIComponent(CONFIG.APP_SECRET);
+      const res = await fetch(url, { cache:"no-store" });
       if(!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
+
+      if(data && data.status === "error"){
+        throw new Error("Script error: " + data.message);
+      }
+
       state.records = Array.isArray(data) ? data : [];
       failCount = 0;
       setStatus(true);
@@ -359,7 +375,7 @@
         setStatus(false);
       }
       if(firstLoad){
-        $("#table-body").innerHTML = '<tr><td colspan="9"><div class="empty-state">Could not reach the live register. Check the deployed script URL.</div></td></tr>';
+        $("#table-body").innerHTML = '<tr><td colspan="9"><div class="empty-state">Could not reach the live register. Check the deployed script URL and that CONFIG.APP_SECRET matches APP_SECRET in Code.gs.</div></td></tr>';
       }
       // Retry sooner than the normal interval so a transient miss
       // recovers quickly instead of waiting the full 30s.
@@ -397,20 +413,6 @@
     fillSelect($("#f-profile"), profiles, "All profiles");
     fillSelect($("#f-submitted"), submitted, "All submitted to");
     fillSelect($("#f-center"), locations, "All centers");
-
-    // First time filters are populated, default the month dropdown
-    // to the current month (instead of "All months") if there's any
-    // data for it. Only happens once — after that the user's own
-    // choice (including switching back to "All months") is respected.
-    if(!monthDefaultApplied){
-      monthDefaultApplied = true;
-      const now = new Date();
-      const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
-      if(months.includes(currentMonth)){
-        state.month = currentMonth;
-        $("#f-month").value = currentMonth;
-      }
-    }
   }
 
   function getFiltered(){
@@ -479,12 +481,41 @@
 
     $("#result-count").textContent = filtered.length + " of " + state.records.length + " shown";
     updateStats(filtered);
+    updateMonthStats();
     updateCenterStats();
     try{
       updateCharts(filtered);
     }catch(chartErr){
       console.error("Chart render failed (data connection is still fine):", chartErr);
     }
+  }
+
+  function updateMonthStats(){
+    const now = new Date();
+    const currentMonth = now.toLocaleDateString("en-US", { month:"long", year:"numeric" });
+
+    // Follows the selected month (or defaults to the real current
+    // month), AND narrows further by the selected center if one is
+    // also picked — so "This Month" can mean "this month, for
+    // Mumbai" the moment both filters are active.
+    const activeMonth = state.month || currentMonth;
+    const isCurrent = activeMonth === currentMonth;
+    const activeCenter = state.center;
+
+    $("#month-label").textContent = activeMonth + (activeCenter ? " · " + activeCenter : "");
+    $("#month-title").textContent = isCurrent ? "This Month" : "Selected Month";
+
+    const scoped = state.records.filter(r =>
+      monthKey(r.Date) === activeMonth &&
+      (!activeCenter || r.Center === activeCenter)
+    );
+    const requests = scoped.length;
+    const prints = scoped.reduce((s,r) => s + (Number(r.Prints)||0), 0);
+    const cost = scoped.reduce((s,r) => s + (Number(r.Price)||0), 0);
+
+    $("#month-requests").textContent = fmtNum(requests);
+    $("#month-prints").textContent = fmtNum(prints);
+    $("#month-cost").textContent = fmtMoney(cost);
   }
 
   function updateCenterStats(){
